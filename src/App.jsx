@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Eye, FileText, Briefcase, RefreshCw, XCircle, ArrowRight, AlertTriangle, Users, Check, Lock, Mic, Info } from 'lucide-react';
+import { Shield, Eye, FileText, Briefcase, RefreshCw, XCircle, ArrowRight, AlertTriangle, Users, Check, Lock, Mic, Info, HelpCircle, X } from 'lucide-react';
 
 // --- Helper Functions ---
 const shuffle = (array) => {
@@ -26,7 +26,7 @@ const ITEMS = {
 // --- Main App Component ---
 export default function App() {
   const [gameState, setGameState] = useState('setup'); 
-  const [playerNames, setPlayerNames] = useState(['علی', 'سارا', 'رضا', 'مریم', 'امیر']);
+  const [playerNames, setPlayerNames] = useState(['', '', '', '', '']); // Removed default names
   const [players, setPlayers] = useState([]);
   const [turnOrder, setTurnOrder] = useState([]); 
   const [turnIndex, setTurnIndex] = useState(0);
@@ -36,10 +36,12 @@ export default function App() {
   const [arrestedId, setArrestedId] = useState('');
   const [intelFact, setIntelFact] = useState('');
   const [bugOriginalOwner, setBugOriginalOwner] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   // Setup Initial Game (Roles)
   const startGame = () => {
-    const count = playerNames.length;
+    const validNames = playerNames.filter(n => n.trim() !== '');
+    const count = validNames.length;
     let ratCount = 1;
     let devoteeCount = count >= 9 ? 3 : count >= 7 ? 2 : 1;
     let guardCount = count - ratCount - devoteeCount;
@@ -54,7 +56,7 @@ export default function App() {
     ];
     rolesArray = shuffle(rolesArray);
 
-    const initialPlayers = playerNames.map((name, index) => ({
+    const initialPlayers = validNames.map((name, index) => ({
       id: index,
       name: name,
       role: rolesArray[index],
@@ -214,13 +216,40 @@ export default function App() {
     startRound(players, requiredPassports, round + 1);
   };
 
-  // Logic to find Rat for Devotees
   const ratPlayer = players.find(p => p.role === ROLES.RAT);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans flex flex-col items-center py-6 px-4 dir-rtl" dir="rtl">
       <div className="max-w-md w-full relative">
         
+        {/* Help Modal */}
+        {showHelp && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-zinc-900 border border-white/10 rounded-[2.5rem] p-6 w-full max-w-sm max-h-[80vh] overflow-y-auto relative">
+              <button onClick={() => setShowHelp(false)} className="absolute top-4 left-4 p-2 text-zinc-500 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+              <h3 className="text-xl font-black text-rose-500 mb-4 flex items-center gap-2">
+                <HelpCircle className="w-5 h-5" /> راهنمای بازی
+              </h3>
+              <div className="space-y-4 text-sm text-zinc-300 leading-relaxed text-right">
+                <p><strong>هدف تیم دیکتاتور:</strong> جمع‌آوری تمامی پاسپورت‌ها بین دیکتاتور و فداییان در پایان فاز معاوضه.</p>
+                <p><strong>هدف تیم گارد:</strong> جلوگیری از فرار دیکتاتور با نگه داشتن حداقل یک پاسپورت یا دستگیری دیکتاتور در فاز رای‌گیری.</p>
+                <div className="bg-zinc-950/50 p-3 rounded-xl border border-white/5">
+                  <h4 className="font-bold text-white mb-1">مراحل هر دور:</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>مشاهده آیتم‌ها (هویت و آیتم تصادفی)</li>
+                    <li>دیپلماسی و گفتگو (بلوف آزاد!)</li>
+                    <li>فاز معاوضه (اجباری یا اختیاری)</li>
+                    <li>فاز اطلاعاتی (بررسی اسناد و میکروفون)</li>
+                    <li>رای‌گیری (در صورت عدم فرار دیکتاتور)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         {['passPhone_1', 'passPhone_2', 'passPhone_3', 'gameOver'].indexOf(gameState) === -1 && (
           <div className="flex justify-between items-center mb-6 px-2">
@@ -228,12 +257,17 @@ export default function App() {
               <Shield className="w-5 h-5" />
               فرار موش‌ها
             </h1>
-            {gameState !== 'setup' && (
-              <div className="flex gap-2 text-xs font-bold text-zinc-300 bg-zinc-900 px-3 py-1.5 rounded-full border border-white/10">
-                <span>روز {round}</span>
-                <span className="text-amber-400">{requiredPassports} پاسپورت</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowHelp(true)} className="p-2 bg-zinc-900 rounded-full border border-white/10 text-zinc-400 hover:text-white transition-colors">
+                <HelpCircle className="w-5 h-5" />
+              </button>
+              {gameState !== 'setup' && (
+                <div className="flex gap-2 text-xs font-bold text-zinc-300 bg-zinc-900 px-3 py-1.5 rounded-full border border-white/10">
+                  <span>روز {round}</span>
+                  <span className="text-amber-400">{requiredPassports} پاسپورت</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -244,7 +278,7 @@ export default function App() {
             <div className="space-y-6 animate-in fade-in duration-500">
               <div className="text-center mb-4">
                 <h2 className="text-2xl font-bold text-white mb-2">ثبت نام بازیکنان</h2>
-                <p className="text-xs text-zinc-500">حداقل ۵ نفر برای شروع نیاز است.</p>
+                <p className="text-xs text-zinc-500">نام بازیکنان را وارد کنید (حداقل ۵ نفر).</p>
               </div>
               <div className="space-y-2 max-h-[300px] overflow-y-auto px-1">
                 {playerNames.map((name, i) => (
@@ -268,15 +302,15 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              {playerNames.length < 10 && (
+              {playerNames.length < 12 && (
                 <button onClick={() => setPlayerNames([...playerNames, ''])} className="w-full py-3 text-xs font-bold text-zinc-500 hover:text-white border border-dashed border-white/10 rounded-2xl transition-all">
                   + بازیکن جدید
                 </button>
               )}
               <button 
                 onClick={startGame}
-                disabled={playerNames.length < 5 || playerNames.some(n => !n.trim())}
-                className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                disabled={playerNames.filter(n => n.trim() !== '').length < 5}
+                className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
               >
                 شروع عملیات
               </button>
@@ -339,8 +373,6 @@ export default function App() {
                 <div className={`text-xl font-black ${currentPlayer.role === ROLES.GUARD ? 'text-sky-400' : 'text-rose-500'}`}>
                   {currentPlayer.role}
                 </div>
-                
-                {/* Reveal Rat to Devotee */}
                 {currentPlayer.role === ROLES.DEVOTEE && ratPlayer && (
                   <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-center gap-2">
                     <Info className="w-4 h-4 text-amber-500" />
@@ -384,7 +416,6 @@ export default function App() {
                 <h3 className="text-white font-black text-2xl">معاوضه آیتم</h3>
                 <p className="text-zinc-500 text-xs mt-1">یک بازیکن را برای تعویض انتخاب کنید یا نگه دارید.</p>
               </div>
-              
               <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto px-1">
                 {players.filter(p => p.id !== currentPlayerId).map(p => (
                   <button
@@ -397,7 +428,6 @@ export default function App() {
                   </button>
                 ))}
               </div>
-
               <button 
                 onClick={() => nextTurnPhase2()}
                 className="w-full py-5 mt-4 bg-zinc-950 text-zinc-400 border border-white/10 rounded-2xl font-black active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -415,17 +445,15 @@ export default function App() {
                 <div className="flex justify-center mb-4">{ITEMS[currentPlayer.item]?.icon}</div>
                 <h4 className="text-4xl font-black text-white">{ITEMS[currentPlayer.item]?.name}</h4>
               </div>
-
               {intelFact ? (
                 <div className="animate-in slide-in-from-bottom-4 delay-200">
-                  <div className="p-6 bg-zinc-950 border border-sky-500/20 rounded-3xl shadow-inner">
-                    <p className="text-base font-bold text-sky-200 leading-relaxed text-right whitespace-pre-line">{intelFact}</p>
+                  <div className="p-6 bg-zinc-950 border border-sky-500/20 rounded-3xl shadow-inner text-right">
+                    <p className="text-base font-bold text-sky-200 leading-relaxed whitespace-pre-line">{intelFact}</p>
                   </div>
                 </div>
               ) : (
                 <p className="text-zinc-600 text-xs italic">اطلاعات خاصی برای شما در این سند وجود ندارد.</p>
               )}
-
               <button onClick={nextTurnPhase3} className="w-full py-5 bg-white text-zinc-950 rounded-[1.5rem] font-black text-xl active:scale-95 transition-all shadow-2xl">
                 پایان نوبت
               </button>
@@ -442,8 +470,7 @@ export default function App() {
                 <h2 className="text-2xl font-black text-white mb-2">رأی‌گیری دستگیری</h2>
                 <p className="text-zinc-500 text-xs px-8 leading-relaxed">دیکتاتور فرار نکرد! گارد فرصت دارد یک نفر را دستگیر کند.</p>
               </div>
-              
-              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto p-1">
+              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto p-1 text-right">
                    <button 
                      onClick={() => setArrestedId('')} 
                      className={`py-4 px-2 rounded-2xl border font-black text-sm transition-all ${arrestedId === '' ? 'bg-zinc-100 text-zinc-950 border-white' : 'bg-zinc-950 border-white/5 text-zinc-600'}`}
@@ -460,7 +487,6 @@ export default function App() {
                      </button>
                    ))}
               </div>
-              
               <button onClick={concludeVoting} className="w-full py-5 bg-white text-zinc-950 rounded-[1.5rem] font-black text-lg active:scale-95 transition-all">
                 ثبت دستگیری
               </button>

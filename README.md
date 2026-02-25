@@ -1,16 +1,34 @@
-# React + Vite
+# Escape of the Rat (فرار موش‌ها)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A social deduction party game for 5–10 players. One player is the **Dictator** (دیکتاتور), trying to escape with the help of **Devotees** (فدایی); the **Guards** (گارد جاویدان) must find and arrest the Dictator before they collect enough passports.
 
-Currently, two official plugins are available:
+## How to run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Open the URL shown in the terminal (usually `http://localhost:5173`). The game is designed to be played on one device—pass the phone or tablet between players when it’s your turn.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## How to play
 
-## Expanding the ESLint configuration
+1. **Setup** — Enter 5–10 player names and start the game. Roles (Dictator, Devotees, Guards) are assigned secretly.
+2. **Each round** — Everyone gets a hidden item: **Passports** (the Dictator team needs these to win), **Intel** (reveals a clue in phase 3), or a **Bug** (reveals who has the microphone in phase 3).
+3. **Phase 1** — In turn order, each player sees their role and item. Devotees learn who the Dictator is.
+4. **Phase 2** — Each player may secretly swap their item with another player. The Dictator team tries to move passports to their side.
+5. **Phase 3** — Intel and Bug effects are revealed (clues about teams, who has the bug, etc.).
+6. **Voting** — Guards vote on who to arrest. If they arrest the Dictator, the Guards win. If not, a new round starts.
+7. **Win conditions** — **Dictator team wins** if they hold all required passports at the end of phase 2. **Guards win** if they arrest the Dictator in voting.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Tech
+
+- **React** + **Vite** + **Tailwind CSS**
+- RTL (right-to-left) UI for Persian text
+
+## Build
+
+```bash
+npm run build
+npm run preview   # preview production build
+```
