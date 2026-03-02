@@ -18,14 +18,13 @@ const ROLES = {
 };
 
 const ITEMS = {
-  passport: { id: 'passport', name: 'پاسپورت', icon: <Briefcase className="w-12 h-12 text-amber-500" />, desc: 'در روز اول تمام اعضا، و در روزهای بعدی فقط دیکتاتور برای فرار به این نیاز دارد.' },
-  intel: { id: 'intel', name: 'سند محرمانه', icon: <FileText className="w-12 h-12 text-sky-400" />, desc: 'در فاز سوم، یک دیتای اطلاعاتی مهم و صد درصد درست به شما می‌دهد.' },
+  passport: { id: 'passport', name: 'پاسپورت', icon: <Briefcase className="w-12 h-12 text-amber-500" />, desc: 'دیکتاتور برای فرار تنها به یکی از این پاسپورت‌ها نیاز دارد.' },
+  intel: { id: 'intel', name: 'سند محرمانه', icon: <FileText className="w-12 h-12 text-sky-400" />, desc: 'در فاز سوم، ممکن است یک دیتای مهم بدهد (۳۰٪ احتمال مخدوش بودن).' },
   bug: { id: 'bug', name: 'میکروفون مخفی', icon: <Mic className="w-12 h-12 text-emerald-500" />, desc: 'هر کس اول بازی این را داشته باشد، در فاز آخر می‌فهمد میکروفون الان دست چه کسی است.' }
 };
 
 // --- Main App Component ---
 export default function App() {
-  // Load initial state from localStorage if exists
   const loadState = (key, defaultVal) => {
     try {
       const saved = localStorage.getItem('ratEscapeState');
@@ -42,24 +41,22 @@ export default function App() {
   const [players, setPlayers] = useState(() => loadState('players', []));
   const [turnOrder, setTurnOrder] = useState(() => loadState('turnOrder', []));
   const [turnIndex, setTurnIndex] = useState(() => loadState('turnIndex', 0));
-  const [requiredPassports, setRequiredPassports] = useState(() => loadState('requiredPassports', 0));
   const [round, setRound] = useState(() => loadState('round', 1));
   const [winner, setWinner] = useState(() => loadState('winner', null));
   const [arrestedId, setArrestedId] = useState('');
   const [intelFact, setIntelFact] = useState('');
   const [bugOriginalOwner, setBugOriginalOwner] = useState(() => loadState('bugOriginalOwner', null));
+  const [passportsInPlay, setPassportsInPlay] = useState(() => loadState('passportsInPlay', 1));
   const [showHelp, setShowHelp] = useState(false);
 
-  // Save to localStorage on state changes
   useEffect(() => {
     const stateToSave = {
       gameState, playerNames, players, turnOrder, turnIndex,
-      requiredPassports, round, winner, bugOriginalOwner
+      round, winner, bugOriginalOwner, passportsInPlay
     };
     localStorage.setItem('ratEscapeState', JSON.stringify(stateToSave));
-  }, [gameState, playerNames, players, turnOrder, turnIndex, requiredPassports, round, winner, bugOriginalOwner]);
+  }, [gameState, playerNames, players, turnOrder, turnIndex, round, winner, bugOriginalOwner, passportsInPlay]);
 
-  // Setup Initial Game (Roles)
   const startGame = () => {
     const validNames = playerNames.filter(n => n.trim() !== '');
     const count = validNames.length;
@@ -82,22 +79,24 @@ export default function App() {
     }));
 
     setRound(1);
-    startRound(initialPlayers, 1);
+    startRound(initialPlayers, 1, []);
   };
 
-  // Start a new Round
-  const startRound = (currentPlayers, roundNum) => {
-    let passportsCount = 1;
-    if (roundNum === 1) {
-      // Day 1: Passports equal to Dictator Team size
-      passportsCount = currentPlayers.filter(p => p.role === ROLES.RAT || p.role === ROLES.DEVOTEE).length;
+  const startRound = (currentPlayers, roundNum, prevTurnOrder = []) => {
+    const devoteeCount = currentPlayers.filter(p => p.role === ROLES.DEVOTEE).length;
+    
+    let currentPassportsCount = 1;
+    if (roundNum === 1 || roundNum === 2) {
+      currentPassportsCount = 1;
+    } else if (roundNum === 3) {
+      currentPassportsCount = Math.ceil(devoteeCount / 2) + 1;
     }
     
-    setRequiredPassports(passportsCount);
-    
-    const intelsCount = currentPlayers.length - passportsCount - 1;
+    setPassportsInPlay(currentPassportsCount);
+
+    const intelsCount = currentPlayers.length - currentPassportsCount - 1;
     let deck = [
-      ...Array(passportsCount).fill(ITEMS.passport.id),
+      ...Array(currentPassportsCount).fill(ITEMS.passport.id),
       ITEMS.bug.id,
       ...Array(Math.max(0, intelsCount)).fill(ITEMS.intel.id)
     ];
@@ -111,7 +110,11 @@ export default function App() {
     const bugOwner = updatedPlayers.find(p => p.item === ITEMS.bug.id);
     setBugOriginalOwner(bugOwner ? bugOwner.id : null);
 
-    const order = shuffle(updatedPlayers.map(p => p.id));
+    let order = shuffle(updatedPlayers.map(p => p.id));
+    
+    if (roundNum > 1 && prevTurnOrder.length > 0 && order[0] === prevTurnOrder[0]) {
+      order.push(order.shift());
+    }
 
     setPlayers(updatedPlayers);
     setTurnOrder(order);
@@ -123,7 +126,6 @@ export default function App() {
   const currentPlayerId = turnOrder[turnIndex];
   const currentPlayer = players.find(p => p.id === currentPlayerId);
 
-  // Transition Helpers
   const nextTurnPhase1 = () => {
     if (turnIndex + 1 < turnOrder.length) {
       setTurnIndex(turnIndex + 1);
@@ -165,31 +167,15 @@ export default function App() {
   };
 
   const checkDictatorWin = () => {
-    let win = false;
-    let reason = '';
-    
-    const dictTeamWithPassports = players.filter(p => 
-      (p.role === ROLES.RAT || p.role === ROLES.DEVOTEE) && p.item === ITEMS.passport.id
-    ).length;
-    
     const ratHasPassport = players.find(p => p.role === ROLES.RAT)?.item === ITEMS.passport.id;
 
-    if (round === 1) {
-      if (dictTeamWithPassports === requiredPassports) {
-        win = true;
-        reason = `در روز اول، دیکتاتور و ارزشی‌ها توانستند تمام ${requiredPassports} پاسپورت را جمع کنند و فرار کنند!`;
+    if (ratHasPassport) {
+      if (round === 1) {
+        setGameState('ultimatum');
+      } else {
+        setWinner({ team: 'rat', reason: `در روز ${round}، دیکتاتور موفق شد پاسپورت را به دست آورد و بی‌درنگ فرار کرد!` });
+        setGameState('gameOver');
       }
-    } else {
-      // Day 2 and 3
-      if (ratHasPassport) {
-        win = true;
-        reason = `در روز ${round}، دیکتاتور موفق شد تک پاسپورت بازی را به دست بیاورد و به تنهایی فرار کند!`;
-      }
-    }
-
-    if (win) {
-      setWinner({ team: 'rat', reason });
-      setGameState('gameOver');
     } else {
       setTurnIndex(0);
       setGameState('passPhone_3');
@@ -197,6 +183,10 @@ export default function App() {
   };
 
   const generateIntelFact = (viewerId) => {
+    if (Math.random() < 0.3) {
+      return '⚠️ این سند مخدوش است و اطلاعات آن غیرقابل خواندن می‌باشد.';
+    }
+
     const others = players.filter(p => p.id !== viewerId);
     const shuffledOthers = shuffle(others);
     const p1 = shuffledOthers[0];
@@ -210,7 +200,6 @@ export default function App() {
       facts.push(`${p1.name} و ${p2.name} در ${p1Team === p2Team ? 'یک جبهه' : 'جبهه‌های مخالف'} هستند.`);
     }
 
-    // Identify someone who is definitely NOT the rat
     const notDictatorOthers = others.filter(p => p.role !== ROLES.RAT);
     if (notDictatorOthers.length > 0) {
         const definitelyNotRat = shuffle(notDictatorOthers)[0];
@@ -245,40 +234,59 @@ export default function App() {
     setGameState('phase3_intel');
   };
 
+  const concludeUltimatum = () => {
+    if (arrestedId !== '') {
+      const arrestedPlayer = players.find(p => p.id === parseInt(arrestedId));
+      if (arrestedPlayer.role === ROLES.RAT) {
+        setWinner({ 
+          team: 'guard', 
+          reason: `در اولتیماتوم روز اول، گارد موفق شد دیکتاتور (${arrestedPlayer.name}) را قبل از پرواز دستگیر کند!` 
+        });
+      } else {
+        setWinner({ 
+          team: 'rat', 
+          reason: `در اولتیماتوم، گارد فرد اشتباهی (${arrestedPlayer.name}) را دستگیر کرد و دیکتاتور موفق به فرار شد!` 
+        });
+      }
+      setGameState('gameOver');
+      setArrestedId('');
+    }
+  };
+
   const concludeVoting = () => {
     if (arrestedId !== '') {
       const arrestedPlayer = players.find(p => p.id === parseInt(arrestedId));
       if (arrestedPlayer.role === ROLES.RAT) {
         setWinner({ 
           team: 'guard', 
-          reason: `گارد موفق شد دیکتاتور (${arrestedPlayer.name}) را دستگیر کند!` 
+          reason: `گارد در رأی‌گیری موفق شد دیکتاتور (${arrestedPlayer.name}) را دستگیر کند!` 
         });
         setGameState('gameOver');
         return;
       } else {
         alert(`اشتباه! ${arrestedPlayer.name} دیکتاتور نبود.`);
         if (round === 3) {
-          setWinner({ team: 'rat', reason: `روز سوم به پایان رسید و گارد به اشتباه یک فرد بی‌گناه را دستگیر کرد. دیکتاتور و تیمش پیروز شدند!` });
+          setWinner({ team: 'rat', reason: `روز سوم تمام شد و گارد یک بی‌گناه را دستگیر کرد. دیکتاتور فرار کرد و پیروز شد!` });
           setGameState('gameOver');
           return;
         }
       }
     } else {
       if (round === 3) {
-         setWinner({ team: 'rat', reason: `روز سوم به پایان رسید و گارد هیچکس را دستگیر نکرد. دیکتاتور و تیمش پیروز شدند!` });
+         setWinner({ team: 'rat', reason: `روز سوم تمام شد و گارد هیچکس را دستگیر نکرد. دیکتاتور موفق به فرار شد!` });
          setGameState('gameOver');
          return;
       }
     }
     
     setArrestedId('');
-    startRound(players, round + 1);
+    startRound(players, round + 1, turnOrder);
   };
 
   const getDayDescription = () => {
-    if (round === 1) return 'روز اول: دیکتاتور و ارزشی‌ها همگی باید پاسپورت در دست داشته باشند تا پیروز شوند. تعداد پاسپورت‌های این دور برابر با تعداد اعضای تیم دیکتاتور است.';
-    if (round === 2) return 'روز دوم: اوضاع خراب است! فقط یک پاسپورت در بازی وجود دارد. ارزشی‌ها باید تلاش کنند این پاسپورت را به دیکتاتور بدهند تا تنهایی فرار کند.';
-    if (round === 3) return 'روز سوم (آخرین فرصت): مثل روز دوم فقط یک پاسپورت در بازیست. اگر در پایان این روز و در رأی‌گیری گارد نتواند دیکتاتور را دستگیر کند، بازی به نفع تیم دیکتاتور تمام می‌شود!';
+    if (round === 1) return `در این دور ۱ پاسپورت در بازی است. اگر در پایان معاوضه دیکتاتور پاسپورت را گرفته باشد، وارد اولتیماتوم می‌شوید و گارد باید فوراً او را پیدا کند.`;
+    if (round === 2) return `در این دور ۱ پاسپورت در بازی است. اگر در پایان معاوضه دیکتاتور پاسپورت را به دست آورد، بی‌درنگ فرار کرده و می‌برد!`;
+    if (round === 3) return `آخرین فرصت! در این دور ${passportsInPlay} پاسپورت وجود دارد. فرار دیکتاتور فوری است. اگر فرار نکند، رأی‌گیری نهایی تعیین‌کننده بازی خواهد بود.`;
     return '';
   };
 
@@ -306,16 +314,21 @@ export default function App() {
                 <HelpCircle className="w-5 h-5" /> راهنمای بازی
               </h3>
               <div className="space-y-4 text-sm text-zinc-300 leading-relaxed text-right">
-                <p><strong>هدف تیم دیکتاتور (دیکتاتور و ارزشی‌ها):</strong> فرار دادن دیکتاتور! در روز اول همه باید پاسپورت داشته باشند، از روز دوم به بعد فقط فرار تنهایی دیکتاتور کافیست.</p>
-                <p><strong>هدف تیم گارد:</strong> جلوگیری از دستیابی تیم مقابل به پاسپورت‌ها و دستگیری دیکتاتور در زمان رأی‌گیری.</p>
+                <p><strong>هدف تیم دیکتاتور:</strong> فرار دادن دیکتاتور! دیکتاتور در هر روزی که بتواند یکی از پاسپورت‌ها را به دست آورد برنده می‌شود (روز اول اولتیماتوم دارد).</p>
+                <p><strong>هدف تیم گارد:</strong> جلوگیری از رسیدن پاسپورت به دیکتاتور و دستگیری او در زمان رأی‌گیری یا اولتیماتوم.</p>
                 <div className="bg-zinc-950/50 p-3 rounded-xl border border-white/5">
+                  <h4 className="font-bold text-white mb-1">تعداد پاسپورت‌ها در هر روز:</h4>
+                  <ul className="list-disc list-inside text-xs space-y-1 text-zinc-400 mb-3">
+                    <li>روز اول و دوم: ۱ عدد</li>
+                    <li>روز سوم: (نصف ارزشی‌ها) + ۱</li>
+                  </ul>
                   <h4 className="font-bold text-white mb-1">مراحل هر دور:</h4>
                   <ul className="list-disc list-inside space-y-1">
-                    <li>مشاهده آیتم‌ها (هویت و آیتم تصادفی)</li>
+                    <li>مشاهده آیتم‌ها (هویت و آیتم)</li>
                     <li>دیپلماسی و گفتگو (بلوف آزاد!)</li>
                     <li>فاز معاوضه (تعویض یا نگه داشتن)</li>
-                    <li>فاز سوم (بررسی اسناد و میکروفون)</li>
-                    <li>رای‌گیری (در صورت عدم فرار دیکتاتور)</li>
+                    <li>فاز سوم (در صورت عدم فرار دیکتاتور)</li>
+                    <li>رای‌گیری یا اولتیماتوم</li>
                   </ul>
                 </div>
               </div>
@@ -337,7 +350,7 @@ export default function App() {
               <button onClick={() => setShowHelp(true)} className="p-2 bg-zinc-900 rounded-full border border-white/10 text-zinc-400 hover:text-white transition-colors">
                 <HelpCircle className="w-4 h-4" />
               </button>
-              {['passPhone_1', 'passPhone_2', 'passPhone_3', 'gameOver'].indexOf(gameState) === -1 && (
+              {['passPhone_1', 'passPhone_2', 'passPhone_3', 'gameOver', 'ultimatum'].indexOf(gameState) === -1 && (
                 <div className="flex gap-2 text-xs font-bold text-zinc-300 bg-zinc-900 px-3 py-1.5 rounded-full border border-white/10">
                   <span>روز {round} / ۳</span>
                 </div>
@@ -411,13 +424,13 @@ export default function App() {
                 <p>در این دور آیتم‌های زیر پخش شده است:</p>
                 <div className="flex flex-wrap justify-center gap-2 mt-2">
                    <span className="bg-amber-500/20 text-amber-500 px-3 py-1 rounded-lg text-xs font-bold border border-amber-500/20">
-                     {requiredPassports} پاسپورت
+                     {passportsInPlay} پاسپورت
                    </span>
                    <span className="bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-500/20">
                      ۱ میکروفون
                    </span>
                    <span className="bg-sky-500/20 text-sky-500 px-3 py-1 rounded-lg text-xs font-bold border border-sky-500/20">
-                     {players.length - requiredPassports - 1} سند محرمانه
+                     {players.length - passportsInPlay - 1} سند محرمانه
                    </span>
                 </div>
               </div>
@@ -535,8 +548,10 @@ export default function App() {
               </div>
               {intelFact ? (
                 <div className="animate-in slide-in-from-bottom-4 delay-200">
-                  <div className="p-6 bg-zinc-950 border border-sky-500/20 rounded-3xl shadow-inner text-right">
-                    <p className="text-base font-bold text-sky-200 leading-relaxed whitespace-pre-line">{intelFact}</p>
+                  <div className={`p-6 bg-zinc-950 border rounded-3xl shadow-inner text-right ${intelFact.includes('مخدوش') ? 'border-amber-500/20' : 'border-sky-500/20'}`}>
+                    <p className={`text-base font-bold leading-relaxed whitespace-pre-line ${intelFact.includes('مخدوش') ? 'text-amber-200/80' : 'text-sky-200'}`}>
+                      {intelFact}
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -548,7 +563,40 @@ export default function App() {
             </div>
           )}
 
-          {/* STATE: VOTING */}
+          {/* STATE: ULTIMATUM (DAY 1 ONLY) */}
+          {gameState === 'ultimatum' && (
+            <div className="text-center space-y-6 py-4 animate-in fade-in duration-500">
+              <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto border border-rose-500/20 animate-pulse">
+                <AlertTriangle className="w-8 h-8 text-rose-500" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-rose-500 mb-2">اولتیماتوم فرار!</h2>
+                <p className="text-zinc-400 text-xs px-6 leading-relaxed">
+                  دیکتاتور پاسپورت را گرفته و در حال فرار است! این آخرین شانس گارد است، بدون رأی‌گیریِ نهایی باید او را تشخیص دهید.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto p-1 text-right">
+                   {players.map(p => (
+                     <button 
+                       key={p.id}
+                       onClick={() => setArrestedId(p.id.toString())} 
+                       className={`py-4 px-2 rounded-2xl border font-black text-sm transition-all ${arrestedId === p.id.toString() ? 'bg-rose-600 border-rose-400 text-white shadow-lg shadow-rose-900/40' : 'bg-zinc-950 border-white/5 text-zinc-500 hover:bg-zinc-900'}`}
+                     >
+                       {p.name}
+                     </button>
+                   ))}
+              </div>
+              <button 
+                onClick={concludeUltimatum} 
+                disabled={arrestedId === ''}
+                className="w-full py-5 bg-rose-600 text-white rounded-[1.5rem] font-black text-lg active:scale-95 disabled:opacity-50 disabled:grayscale transition-all"
+              >
+                دستگیری اضطراری
+              </button>
+            </div>
+          )}
+
+          {/* STATE: VOTING (DAYS 2 and 3) */}
           {gameState === 'voting' && (
             <div className="text-center space-y-6 py-4 animate-in fade-in duration-500">
               <div className="w-16 h-16 bg-sky-500/10 rounded-full flex items-center justify-center mx-auto border border-sky-500/20">
